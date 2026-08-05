@@ -9,9 +9,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Outfit:wght@300;400;600;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
     
-    <!-- Three.js and OrbitControls via CDN -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Three.js and OrbitControls (Local with CDN fallback) -->
+    <script src="three.min.js"></script>
+    <script>window.THREE || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>')</script>
+    <script src="OrbitControls.js"></script>
+    <script>window.THREE && window.THREE.OrbitControls || document.write('<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"><\/script>')</script>
     
     <style>
         :root {
@@ -1454,15 +1456,18 @@ Condition: 40 > 36 edges.
                     isFailure: coreFailed
                 });
 
-                // Step 2: Averaging over smaller class of core H (Item 5)
+                // Step 2: Averaging over smaller class of core H (Item 1)
+                const partMap = new Map();
+                graph.vertices.forEach(v => partMap.set(v.id, v.part));
+
                 let xCoreCount = 0;
                 let yCoreCount = 0;
                 activeV.forEach(vId => {
-                    if (vId.startsWith('X')) xCoreCount++;
-                    else yCoreCount++;
+                    if (partMap.get(vId) === 'X') xCoreCount++;
+                    else if (partMap.get(vId) === 'Y') yCoreCount++;
                 });
 
-                const smallerClassPrefix = (xCoreCount <= yCoreCount) ? 'X' : 'Y';
+                const smallerClassPart = (xCoreCount <= yCoreCount) ? 'X' : 'Y';
 
                 let rootV = null;
                 let minDegInTopClass = Infinity;
@@ -1470,7 +1475,7 @@ Condition: 40 > 36 edges.
 
                 // Among vertices of the smaller class of H with degree >= 5, select minimum degree (handles Case 2 uniqueness)
                 for (let vId of activeV) {
-                    if (vId.startsWith(smallerClassPrefix) || vId === 'v') {
+                    if (partMap.get(vId) === smallerClassPart) {
                         const d = adj.get(vId).size;
                         if (d >= 5) {
                             if (d < minDegInTopClass) {
@@ -1483,7 +1488,7 @@ Condition: 40 > 36 edges.
                 }
                 if (!rootV && maxDegInTopClass >= 5) {
                     for (let vId of activeV) {
-                        if (adj.get(vId).size === maxDegInTopClass) { rootV = vId; break; }
+                        if (partMap.get(vId) === smallerClassPart && adj.get(vId).size === maxDegInTopClass) { rootV = vId; break; }
                     }
                 }
 
@@ -1492,12 +1497,12 @@ Condition: 40 > 36 edges.
                 steps.push({
                     stepIndex: 2,
                     stageTitle: rootFailed ? "STAGE 2 // ROOT DEGREE THRESHOLD UNFULFILLED" : "STAGE 2 // HIGH-DEGREE ROOT DISCOVERY",
-                    title: rootFailed ? `⚠️ Max Degree d(v) < 5 in Smaller Class (${smallerClassPrefix})` : "High-Degree Root Finding (Reduction Eq 3)",
+                    title: rootFailed ? `⚠️ Max Degree d(v) < 5 in Smaller Class (${smallerClassPart})` : "High-Degree Root Finding (Reduction Eq 3)",
                     badge: "STEP 2 / 5",
                     desc: rootFailed ?
-                        `Average degree in smaller class ${smallerClassPrefix} is ≤ 4. Maximum degree is d(v) = ${maxDegInTopClass >= 0 ? maxDegInTopClass : 0} < 5. Cannot anchor central root.` :
-                        `Averaging over smaller class ${smallerClassPrefix} of H gives average degree > 4. Selected root v = ${rootV} with d_H(v) = ${adj.get(rootV).size} ≥ 5!`,
-                    math: `Smaller Class of H: |${smallerClassPrefix}_H| = ${smallerClassPrefix === 'X' ? xCoreCount : yCoreCount}\nSelected Root v = ${rootV || 'NONE'}\nDegree d_H(v) = ${rootV ? adj.get(rootV).size : 0} ≥ 5: ${rootFailed ? "FAILED" : "SATISFIED"}`,
+                        `Average degree in smaller class ${smallerClassPart} is ≤ 4. Maximum degree is d(v) = ${maxDegInTopClass >= 0 ? maxDegInTopClass : 0} < 5. Cannot anchor central root.` :
+                        `Averaging over smaller class ${smallerClassPart} of H gives average degree > 4. Selected root v = ${rootV} with d_H(v) = ${adj.get(rootV).size} ≥ 5!`,
+                    math: `Smaller Class of H: |${smallerClassPart}_H| = ${smallerClassPart === 'X' ? xCoreCount : yCoreCount}\nSelected Root v = ${rootV || 'NONE'}\nDegree d_H(v) = ${rootV ? adj.get(rootV).size : 0} ≥ 5: ${rootFailed ? "FAILED" : "SATISFIED"}`,
                     activeVertices: activeV,
                     activeEdges: coreEdges,
                     deletedVertices: deletedV,
@@ -1532,14 +1537,14 @@ Condition: 40 > 36 edges.
                         if (leafE) all7Edges.add(leafE.id);
 
                         const canonicalMap = {
-                            'v': new THREE.Vector3(0, 0, 0),
-                            'x1': new THREE.Vector3(-6, 0, 0),
-                            'y1': new THREE.Vector3(-12, 0, 0),
-                            'w': new THREE.Vector3(-18, 0, 0),
-                            'x3': new THREE.Vector3(6, 0, 0),
-                            'y3': new THREE.Vector3(12, 0, 0),
-                            'p1': new THREE.Vector3(18, 0, 0),
-                            'x4': new THREE.Vector3(0, -7, 0)
+                            'v': { x: 0, y: 0, z: 0 },
+                            'x1': { x: -6, y: 0, z: 0 },
+                            'y1': { x: -12, y: 0, z: 0 },
+                            'w': { x: -18, y: 0, z: 0 },
+                            'x3': { x: 6, y: 0, z: 0 },
+                            'y3': { x: 12, y: 0, z: 0 },
+                            'p1': { x: 18, y: 0, z: 0 },
+                            'x4': { x: 0, y: -7, z: 0 }
                         };
 
                         // Step 3: Backbone Path
@@ -1560,14 +1565,19 @@ Condition: 40 > 36 edges.
                             isFailure: false
                         });
 
-                        // Step 4: Pendant Leaf Attachment
-                        const degV = adj.get('v').size;
+                        // Step 4: Pendant Leaf Attachment (Dynamic Item 2 calculation)
+                        const nNeighbors = Array.from(adj.get(rootV) || []);
+                        const backboneXVertices = Array.from(backboneNodes).filter(u => partMap.get(u) === 'X');
+                        const excluded = nNeighbors.filter(u => backboneXVertices.includes(u));
+                        const candidates = nNeighbors.filter(u => !excluded.includes(u));
+                        const pendantChoice = 'x4';
+
                         steps.push({
                             stepIndex: 4,
                             stageTitle: `STAGE 4 // PENDANT LEAF ATTACHMENT`,
                             title: "Pendant Leaf Attachment",
                             badge: "STEP 4 / 5",
-                            desc: `N(v): ${degV} neighbors — 4 lie on backbone (x1, x2, x3, w) → x4 chosen from remaining ${degV - 4}. (Threshold 5 is optimal: K4,4 has δ=4 but contains no S(3,3,1)).`,
+                            desc: `N(${rootV}): ${nNeighbors.length} neighbors — ${excluded.length} lie on backbone (${excluded.join(', ')}) → ${pendantChoice} chosen from remaining ${candidates.length} (${candidates.join(', ')}). (Threshold 5 is optimal: K4,4 has δ=4 but contains no S(3,3,1)).`,
                             math: `Target Structure S(3,3,1) fully anchored with 8 vertices and 7 edges!`,
                             activeVertices: activeV,
                             activeEdges: coreEdges,
@@ -1655,15 +1665,19 @@ Condition: 40 > 36 edges.
                         });
 
                         const remainingLeaves = new Set(Array.from(spiderV).filter(v => !backboneNodes.has(v)));
-                        const degV = adj.get(rootV).size;
+                        const nNeighbors = Array.from(adj.get(rootV) || []);
+                        const backboneXVertices = Array.from(backboneNodes).filter(u => partMap.get(u) === 'X');
+                        const excluded = nNeighbors.filter(u => backboneXVertices.includes(u));
+                        const candidates = nNeighbors.filter(u => !excluded.includes(u));
+                        const pendantChoice = Array.from(remainingLeaves)[0] || (candidates.length > 0 ? candidates[0] : 'x4');
 
-                        // Step 4: Pendant Leaf Attachment
+                        // Step 4: Pendant Leaf Attachment (Dynamic Item 2 calculation)
                         steps.push({
                             stepIndex: 4,
                             stageTitle: `STAGE 4 // PENDANT LEAF ATTACHMENT`,
                             title: "Pendant Leaf Attachment",
                             badge: "STEP 4 / 5",
-                            desc: `N(v): ${degV} neighbors — 4 lie on backbone (excluded) → x4 chosen from remaining ${degV - 4}. (Threshold 5 is optimal: K4,4 has δ=4 but contains no S(3,3,1)).`,
+                            desc: `N(${rootV}): ${nNeighbors.length} neighbors — ${excluded.length} lie on backbone (${excluded.join(', ')}) → ${pendantChoice} chosen from remaining ${candidates.length} (${candidates.join(', ')}). (Threshold 5 is optimal: K4,4 has δ=4 but contains no S(3,3,1)).`,
                             math: `Target Structure S(3,3,1) fully anchored with 8 vertices and 7 edges!`,
                             activeVertices: activeV,
                             activeEdges: coreEdges,
@@ -1991,7 +2005,7 @@ Condition: 40 > 36 edges.
                 const canonicalMap = {};
 
                 // Root at origin (matching 2D Blueprint HUD orientation)
-                canonicalMap[rootV] = new THREE.Vector3(0, 0, 0);
+                canonicalMap[rootV] = { x: 0, y: 0, z: 0 };
 
                 if (targetTree === 'P7_leaf') {
                     // Align P7 as straight horizontal spine: z1 - y1 - x1 - c - x2 - y2 - z2 with leaf x4 pointing down
@@ -2001,15 +2015,15 @@ Condition: 40 > 36 edges.
 
                     // Left leg along negative X
                     leg1.forEach((v, dist) => {
-                        canonicalMap[v] = new THREE.Vector3(-(dist + 1) * 6, 0, 0);
+                        canonicalMap[v] = { x: -(dist + 1) * 6, y: 0, z: 0 };
                     });
                     // Right leg along positive X
                     leg2.forEach((v, dist) => {
-                        canonicalMap[v] = new THREE.Vector3((dist + 1) * 6, 0, 0);
+                        canonicalMap[v] = { x: (dist + 1) * 6, y: 0, z: 0 };
                     });
                     // Leaf straight down along negative Y
                     leg3.forEach((v, dist) => {
-                        canonicalMap[v] = new THREE.Vector3(0, -(dist + 1) * 7, 0);
+                        canonicalMap[v] = { x: 0, y: -(dist + 1) * 7, z: 0 };
                     });
                 } else {
                     // Standard Spider Canonical Orientation matching 2D Blueprint HUD:
@@ -2018,17 +2032,21 @@ Condition: 40 > 36 edges.
                     // Leg 2 (bottom): negative Y axis (0, -7, -14)
                     // Leg 3 (top): positive Y axis (0, +7, +14)
                     const axisMap = [
-                        { dir: new THREE.Vector3(-1, 0, 0), step: 6 },  // Left
-                        { dir: new THREE.Vector3(1, 0, 0), step: 6 },   // Right
-                        { dir: new THREE.Vector3(0, -1, 0), step: 7 },  // Bottom
-                        { dir: new THREE.Vector3(0, 1, 0), step: 7 }    // Top
+                        { dir: { x: -1, y: 0, z: 0 }, step: 6 },  // Left
+                        { dir: { x: 1, y: 0, z: 0 }, step: 6 },   // Right
+                        { dir: { x: 0, y: -1, z: 0 }, step: 7 },  // Bottom
+                        { dir: { x: 0, y: 1, z: 0 }, step: 7 }    // Top
                     ];
 
                     legsFound.forEach((leg, i) => {
                         const axis = axisMap[i % axisMap.length];
                         leg.path.forEach((v, dist) => {
-                            const pos = axis.dir.clone().multiplyScalar((dist + 1) * axis.step);
-                            canonicalMap[v] = pos;
+                            const mult = (dist + 1) * axis.step;
+                            canonicalMap[v] = {
+                                x: axis.dir.x * mult,
+                                y: axis.dir.y * mult,
+                                z: axis.dir.z * mult
+                            };
                         });
                     });
                 }
@@ -2282,8 +2300,7 @@ Condition: 40 > 36 edges.
             }
 
             createEdgeCylinder(pos1, pos2, color, radius, opacity) {
-                const distance = pos1.distanceTo(pos2);
-                const geometry = new THREE.CylinderGeometry(radius, radius, distance, 8);
+                const geometry = new THREE.CylinderGeometry(radius, radius, 1.0, 8);
                 const material = new THREE.MeshStandardMaterial({
                     color: color,
                     emissive: color,
@@ -2333,6 +2350,13 @@ Condition: 40 > 36 edges.
                 document.getElementById('step-card-math').textContent = step.math;
 
                 this.blueprintHUD.render(index, this.selectedTreeKey);
+
+                // Synchronously apply visual state immediately on step entry (Item 3)
+                this.updateVisualState(step);
+
+                if (index === 5 && !step.isFailure && step.canonicalMap) {
+                    this.triggerCanonicalMorphing(step);
+                }
 
                 let flashToggle = false;
                 let flashCount = 0;
@@ -2403,12 +2427,26 @@ Condition: 40 > 36 edges.
                             }
                             mesh.scale.set(1.7, 1.7, 1.7);
                         } else {
-                            const isX = mesh.userData.part === 'X';
-                            const origColor = isX ? 0x00f0ff : 0xff007f;
-                            mesh.material.color.setHex(origColor);
-                            mesh.material.emissive.setHex(origColor);
-                            mesh.material.emissiveIntensity = 0.5;
-                            mesh.scale.set(1.0, 1.0, 1.0);
+                            const isSpider = step.spiderVertices.has(vId);
+                            const isRoot = step.highlightedRoot === vId;
+                            if (isSpider) {
+                                mesh.material.color.setHex(0xffd700);
+                                mesh.material.emissive.setHex(0x665000);
+                                mesh.material.emissiveIntensity = 0.6;
+                                mesh.scale.set(1.6, 1.6, 1.6);
+                            } else if (isRoot) {
+                                mesh.material.color.setHex(0x00ff66);
+                                mesh.material.emissive.setHex(0x00ff66);
+                                mesh.material.emissiveIntensity = 1.5;
+                                mesh.scale.set(1.8, 1.8, 1.8);
+                            } else {
+                                const isX = mesh.userData.part === 'X';
+                                const origColor = isX ? 0x00f0ff : 0xff007f;
+                                mesh.material.color.setHex(origColor);
+                                mesh.material.emissive.setHex(origColor);
+                                mesh.material.emissiveIntensity = 0.5;
+                                mesh.scale.set(1.0, 1.0, 1.0);
+                            }
                         }
                     }
                 });
@@ -2449,12 +2487,23 @@ Condition: 40 > 36 edges.
             }
 
             updateVisualState(step) {
-                this.graph.vertices.forEach(v => {
-                    const targetPos = this.viewMode === '3D' ?
-                        this.nodePositions3D.get(v.id) :
-                        this.nodePositions2D.get(v.id);
-                    this.nodeTargetPositions.set(v.id, targetPos.clone());
-                });
+                const isStep5Canonical = (step.stepIndex === 5 && !step.isFailure);
+
+                if (isStep5Canonical && step.canonicalMap) {
+                    this.graph.vertices.forEach(v => {
+                        if (step.canonicalMap[v.id]) {
+                            const cPos = step.canonicalMap[v.id];
+                            this.nodeTargetPositions.set(v.id, new THREE.Vector3(cPos.x, cPos.y, cPos.z));
+                        }
+                    });
+                } else {
+                    this.graph.vertices.forEach(v => {
+                        const targetPos = this.viewMode === '3D' ?
+                            this.nodePositions3D.get(v.id) :
+                            this.nodePositions2D.get(v.id);
+                        if (targetPos) this.nodeTargetPositions.set(v.id, targetPos.clone());
+                    });
+                }
 
                 this.nodeMeshes.forEach((mesh, vId) => {
                     const isDeleted = step.deletedVertices.has(vId);
@@ -2462,7 +2511,22 @@ Condition: 40 > 36 edges.
                     const isSpider = step.spiderVertices.has(vId);
                     const isActive = step.activeVertices.has(vId);
 
-                    if (isDeleted) {
+                    if (isStep5Canonical) {
+                        if (isSpider) {
+                            mesh.visible = true;
+                            mesh.material = new THREE.MeshPhysicalMaterial({
+                                color: 0xffd700,
+                                emissive: 0x997700,
+                                emissiveIntensity: 0.8,
+                                roughness: 0.2,
+                                metalness: 0.5,
+                                clearcoat: 1.0
+                            });
+                            mesh.scale.set(1.8, 1.8, 1.8);
+                        } else {
+                            mesh.visible = false;
+                        }
+                    } else if (isDeleted) {
                         mesh.visible = false;
                     } else {
                         mesh.visible = true;
@@ -2515,7 +2579,17 @@ Condition: 40 > 36 edges.
                     const isSpiderEdge = step.spiderEdges.has(eId);
                     const isActiveEdge = step.activeEdges.has(eId);
 
-                    if (!step.activeVertices.has(u) || !step.activeVertices.has(v)) {
+                    if (isStep5Canonical) {
+                        if (isSpiderEdge) {
+                            mesh.visible = true;
+                            mesh.material.color.setHex(0xffd700);
+                            mesh.material.emissive.setHex(0xffd700);
+                            mesh.material.emissiveIntensity = 1.5;
+                            mesh.material.opacity = 1.0;
+                        } else {
+                            mesh.visible = false;
+                        }
+                    } else if (!step.activeVertices.has(u) || !step.activeVertices.has(v)) {
                         mesh.visible = false;
                     } else {
                         mesh.visible = true;
@@ -2537,39 +2611,7 @@ Condition: 40 > 36 edges.
             }
 
             triggerCanonicalMorphing(step) {
-                this.nodeMeshes.forEach((mesh, vId) => {
-                    if (!step.spiderVertices.has(vId)) {
-                        mesh.visible = false;
-                    } else {
-                        mesh.visible = true;
-                        mesh.material = new THREE.MeshPhysicalMaterial({
-                            color: 0xffd700,
-                            emissive: 0x997700,
-                            emissiveIntensity: 0.8,
-                            roughness: 0.2,
-                            metalness: 0.5,
-                            clearcoat: 1.0
-                        });
-                        mesh.scale.set(1.8, 1.8, 1.8);
-
-                        const canonicalPos = step.canonicalMap[vId];
-                        if (canonicalPos) {
-                            this.nodeTargetPositions.set(vId, canonicalPos.clone());
-                        }
-                    }
-                });
-
-                this.edgeMeshes.forEach((mesh, eId) => {
-                    if (!step.spiderEdges.has(eId)) {
-                        mesh.visible = false;
-                    } else {
-                        mesh.visible = true;
-                        mesh.material.color.setHex(0xffd700);
-                        mesh.material.emissive.setHex(0xffd700);
-                        mesh.material.emissiveIntensity = 1.5;
-                        mesh.material.opacity = 1.0;
-                    }
-                });
+                this.updateVisualState(step);
             }
 
             toggleViewMode() {
@@ -2583,19 +2625,26 @@ Condition: 40 > 36 edges.
             animate() {
                 requestAnimationFrame(() => this.animate());
 
-                const lerpFactor = this.currentStepIndex === 5 ? 0.025 : 0.08;
+                const lerpFactor = this.currentStepIndex === 5 ? 0.08 : 0.12;
 
                 this.nodeMeshes.forEach((mesh, vId) => {
                     const targetPos = this.nodeTargetPositions.get(vId);
-                    if (targetPos) {
+                    if (targetPos && mesh.visible) {
                         mesh.position.lerp(targetPos, lerpFactor);
+                        if (mesh.position.distanceTo(targetPos) < 0.01) {
+                            mesh.position.copy(targetPos);
+                        }
                     }
                 });
 
                 this.edgeMeshes.forEach((mesh) => {
-                    const posU = this.nodeMeshes.get(mesh.userData.u).position;
-                    const posV = this.nodeMeshes.get(mesh.userData.v).position;
-                    this.updateEdgeCylinder(mesh, posU, posV);
+                    if (mesh.visible) {
+                        const uMesh = this.nodeMeshes.get(mesh.userData.u);
+                        const vMesh = this.nodeMeshes.get(mesh.userData.v);
+                        if (uMesh && vMesh) {
+                            this.updateEdgeCylinder(mesh, uMesh.position, vMesh.position);
+                        }
+                    }
                 });
 
                 this.activeExplosions.forEach(exp => exp.update());
