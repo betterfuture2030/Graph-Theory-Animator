@@ -830,6 +830,45 @@ Condition: 40 > 36 edges.
                 osc2.start(now); osc2.stop(now + 0.6);
             }
 
+            playTickTock(isHigh = true) {
+                if (!this.enabled || !this.unlocked) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = isHigh ? 'triangle' : 'sine';
+                const freq = isHigh ? 1760 : 1080;
+                osc.frequency.setValueAtTime(freq, now);
+                osc.frequency.exponentialRampToValueAtTime(320, now + 0.035);
+
+                gain.gain.setValueAtTime(0.24, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.035);
+            }
+
+            playUndo() {
+                if (!this.enabled || !this.unlocked) return;
+                const now = this.ctx.currentTime;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(580, now);
+                osc.frequency.exponentialRampToValueAtTime(200, now + 0.09);
+
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.09);
+            }
+
             playRadarPing() {
                 if (!this.enabled || !this.unlocked) return;
                 const now = this.ctx.currentTime;
@@ -1429,9 +1468,12 @@ Condition: 40 > 36 edges.
                 }
 
                 const coreEdges = new Set();
+                const deletedEdges = new Set();
                 graph.edges.forEach(e => {
                     if (activeV.has(e.u) && activeV.has(e.v)) {
                         coreEdges.add(e.id);
+                    } else {
+                        deletedEdges.add(e.id);
                     }
                 });
 
@@ -1449,10 +1491,12 @@ Condition: 40 > 36 edges.
                     activeVertices: activeV,
                     activeEdges: coreEdges,
                     deletedVertices: deletedV,
+                    deletedEdges: deletedEdges,
                     highlightedRoot: null,
                     spiderVertices: new Set(),
                     spiderEdges: new Set(),
                     targetElements: deletedV,
+                    targetEdges: deletedEdges,
                     isFailure: coreFailed
                 });
 
@@ -1506,10 +1550,12 @@ Condition: 40 > 36 edges.
                     activeVertices: activeV,
                     activeEdges: coreEdges,
                     deletedVertices: deletedV,
+                    deletedEdges: deletedEdges,
                     highlightedRoot: rootV,
                     spiderVertices: rootV ? new Set([rootV]) : new Set(),
                     spiderEdges: new Set(),
                     targetElements: rootV ? new Set([rootV]) : new Set(),
+                    targetEdges: new Set(),
                     isFailure: rootFailed
                 });
 
@@ -1558,10 +1604,12 @@ Condition: 40 > 36 edges.
                             activeVertices: activeV,
                             activeEdges: coreEdges,
                             deletedVertices: deletedV,
+                            deletedEdges: deletedEdges,
                             highlightedRoot: rootV,
                             spiderVertices: backboneNodes,
                             spiderEdges: backboneEdges, // EXACTLY 6 backbone edges!
                             targetElements: backboneNodes,
+                            targetEdges: backboneEdges,
                             isFailure: false
                         });
 
@@ -1571,6 +1619,7 @@ Condition: 40 > 36 edges.
                         const excluded = nNeighbors.filter(u => backboneXVertices.includes(u));
                         const candidates = nNeighbors.filter(u => !excluded.includes(u));
                         const pendantChoice = 'x4';
+                        const leafEdges = new Set(leafE ? [leafE.id] : []);
 
                         steps.push({
                             stepIndex: 4,
@@ -1582,10 +1631,12 @@ Condition: 40 > 36 edges.
                             activeVertices: activeV,
                             activeEdges: coreEdges,
                             deletedVertices: deletedV,
+                            deletedEdges: deletedEdges,
                             highlightedRoot: rootV,
                             spiderVertices: spiderV,
                             spiderEdges: all7Edges, // EXACTLY 7 edges!
                             targetElements: new Set(['x4']),
+                            targetEdges: leafEdges,
                             isFailure: false
                         });
 
@@ -1603,10 +1654,12 @@ Condition: 40 > 36 edges.
                             activeVertices: activeV,
                             activeEdges: coreEdges,
                             deletedVertices: deletedV,
+                            deletedEdges: deletedEdges,
                             highlightedRoot: rootV,
                             spiderVertices: spiderV,
                             spiderEdges: all7Edges,
                             targetElements: spiderV,
+                            targetEdges: all7Edges,
                             canonicalMap,
                             isFailure: !isVerified,
                             embeddingVerified: isVerified
@@ -1657,14 +1710,21 @@ Condition: 40 > 36 edges.
                             activeVertices: activeV,
                             activeEdges: coreEdges,
                             deletedVertices: deletedV,
+                            deletedEdges: deletedEdges,
                             highlightedRoot: rootV,
                             spiderVertices: backboneNodes,
                             spiderEdges: backboneEdges, // EXACTLY 6 backbone edges!
                             targetElements: backboneNodes,
+                            targetEdges: backboneEdges,
                             isFailure: false
                         });
 
                         const remainingLeaves = new Set(Array.from(spiderV).filter(v => !backboneNodes.has(v)));
+                        const leafEdges = new Set();
+                        spiderE.forEach(eId => {
+                            if (!backboneEdges.has(eId)) leafEdges.add(eId);
+                        });
+
                         const nNeighbors = Array.from(adj.get(rootV) || []);
                         const backboneXVertices = Array.from(backboneNodes).filter(u => partMap.get(u) === 'X');
                         const excluded = nNeighbors.filter(u => backboneXVertices.includes(u));
@@ -1682,10 +1742,12 @@ Condition: 40 > 36 edges.
                             activeVertices: activeV,
                             activeEdges: coreEdges,
                             deletedVertices: deletedV,
+                            deletedEdges: deletedEdges,
                             highlightedRoot: rootV,
                             spiderVertices: spiderV,
                             spiderEdges: spiderE, // EXACTLY 7 edges!
                             targetElements: remainingLeaves,
+                            targetEdges: leafEdges,
                             isFailure: false
                         });
 
@@ -1703,10 +1765,12 @@ Condition: 40 > 36 edges.
                             activeVertices: activeV,
                             activeEdges: coreEdges,
                             deletedVertices: deletedV,
+                            deletedEdges: deletedEdges,
                             highlightedRoot: rootV,
                             spiderVertices: spiderV,
                             spiderEdges: spiderE,
                             targetElements: spiderV,
+                            targetEdges: spiderE,
                             canonicalMap: embedding.canonicalMap,
                             isFailure: !isVerified,
                             embeddingVerified: isVerified
@@ -1818,8 +1882,10 @@ Condition: 40 > 36 edges.
                 }
 
                 const coreEdges = new Set();
+                const deletedEdges = new Set();
                 graph.edges.forEach(e => {
                     if (activeV.has(e.u) && activeV.has(e.v)) coreEdges.add(e.id);
+                    else deletedEdges.add(e.id);
                 });
 
                 steps.push({
@@ -1832,10 +1898,12 @@ Condition: 40 > 36 edges.
                     activeVertices: activeV,
                     activeEdges: coreEdges,
                     deletedVertices: deletedV,
+                    deletedEdges: deletedEdges,
                     highlightedRoot: null,
                     spiderVertices: new Set(),
                     spiderEdges: new Set(),
                     targetElements: deletedV,
+                    targetEdges: deletedEdges,
                     isFailure: false
                 });
 
@@ -1857,10 +1925,12 @@ Condition: 40 > 36 edges.
                     activeVertices: activeV,
                     activeEdges: coreEdges,
                     deletedVertices: deletedV,
+                    deletedEdges: deletedEdges,
                     highlightedRoot: rootV,
                     spiderVertices: rootV ? new Set([rootV]) : new Set(),
                     spiderEdges: new Set(),
                     targetElements: rootV ? new Set([rootV]) : new Set(),
+                    targetEdges: new Set(),
                     isFailure: false
                 });
 
@@ -1882,10 +1952,12 @@ Condition: 40 > 36 edges.
                         activeVertices: activeV,
                         activeEdges: coreEdges,
                         deletedVertices: deletedV,
+                        deletedEdges: deletedEdges,
                         highlightedRoot: rootV,
                         spiderVertices: embedding.spiderV,
                         spiderEdges: embedding.spiderE,
                         targetElements: embedding.spiderV,
+                        targetEdges: embedding.spiderE,
                         isFailure: false
                     });
 
@@ -1899,10 +1971,12 @@ Condition: 40 > 36 edges.
                         activeVertices: activeV,
                         activeEdges: coreEdges,
                         deletedVertices: deletedV,
+                        deletedEdges: deletedEdges,
                         highlightedRoot: rootV,
                         spiderVertices: embedding.spiderV,
                         spiderEdges: embedding.spiderE,
                         targetElements: embedding.spiderV,
+                        targetEdges: embedding.spiderE,
                         isFailure: false
                     });
 
@@ -1916,10 +1990,12 @@ Condition: 40 > 36 edges.
                         activeVertices: activeV,
                         activeEdges: coreEdges,
                         deletedVertices: deletedV,
+                        deletedEdges: deletedEdges,
                         highlightedRoot: rootV,
                         spiderVertices: embedding.spiderV,
                         spiderEdges: embedding.spiderE,
                         targetElements: embedding.spiderV,
+                        targetEdges: embedding.spiderE,
                         canonicalMap: embedding.canonicalMap,
                         isFailure: false
                     });
@@ -1934,10 +2010,12 @@ Condition: 40 > 36 edges.
                         activeVertices: activeV,
                         activeEdges: coreEdges,
                         deletedVertices: deletedV,
+                        deletedEdges: deletedEdges,
                         highlightedRoot: rootV,
                         spiderVertices: new Set(),
                         spiderEdges: new Set(),
                         targetElements: new Set(),
+                        targetEdges: new Set(),
                         isFailure: true
                     });
 
@@ -2326,10 +2404,14 @@ Condition: 40 > 36 edges.
                 mesh.rotateX(Math.PI / 2);
             }
 
-            setStep(index) {
+            setStep(index, isBackward = false) {
                 if (index < 0 || index >= this.proofSteps.length) return;
-                if (this.flashInterval) clearInterval(this.flashInterval);
+                if (this.flashInterval) {
+                    clearInterval(this.flashInterval);
+                    this.flashInterval = null;
+                }
 
+                const prevIndex = this.currentStepIndex;
                 this.currentStepIndex = index;
                 const step = this.proofSteps[index];
 
@@ -2340,7 +2422,8 @@ Condition: 40 > 36 edges.
                 } else {
                     document.body.classList.remove('failure-alarm');
                     this.showStageBanner(step.stageTitle);
-                    audioSynth.playStageStart();
+                    if (isBackward) audioSynth.playUndo();
+                    else audioSynth.playStageStart();
                 }
 
                 document.getElementById('proof-status-tag').textContent = step.badge;
@@ -2351,29 +2434,38 @@ Condition: 40 > 36 edges.
 
                 this.blueprintHUD.render(index, this.selectedTreeKey);
 
-                // Synchronously apply visual state immediately on step entry (Item 3)
-                this.updateVisualState(step);
-
-                if (index === 5 && !step.isFailure && step.canonicalMap) {
-                    this.triggerCanonicalMorphing(step);
+                // IF BACKWARD STEP OR INITIAL STEP 0: Immediate smooth settled state (Undo)
+                if (isBackward || index === 0) {
+                    this.applySettledState(step);
+                    return;
                 }
 
+                // FORWARD TRANSITION (Automobile Indicator Metaphor):
+                // 1. Establish the base state before the transition begins
+                const priorStep = this.proofSteps[Math.max(0, index - 1)];
+                this.applyBaseStateForTransition(priorStep, step);
+
+                // 2. Synchronized flashing & tick-tock
+                const speedVal = parseInt(document.getElementById('speed-slider').value) || 3000;
+                const toggleInterval = Math.max(180, Math.min(480, Math.round(520 - (speedVal / 6000) * 320)));
+                const totalToggles = (index === 1 || index === 5) ? 10 : 8; // 4 to 5 full on/off cycles
+
                 let flashToggle = false;
-                let flashCount = 0;
-                const maxFlashes = 8;
+                let toggleCount = 0;
 
                 this.flashInterval = setInterval(() => {
                     flashToggle = !flashToggle;
-                    flashCount++;
+                    toggleCount++;
 
-                    this.renderFlashState(step, flashToggle);
-                    audioSynth.playRadarPing();
+                    this.renderTransitionFlashState(priorStep, step, flashToggle);
+                    audioSynth.playTickTock(flashToggle);
 
-                    if (flashCount >= maxFlashes) {
+                    if (toggleCount >= totalToggles) {
                         clearInterval(this.flashInterval);
+                        this.flashInterval = null;
                         this.executeStepLockIn(index, step);
                     }
-                }, 300);
+                }, toggleInterval);
             }
 
             showStageBanner(title) {
@@ -2407,86 +2499,274 @@ Condition: 40 > 36 edges.
                 }, 3000);
             }
 
-            renderFlashState(step, flashToggle) {
-                step.targetElements.forEach(vId => {
-                    const mesh = this.nodeMeshes.get(vId);
-                    if (mesh) {
-                        if (flashToggle) {
-                            if (step.isFailure || step.stepIndex === 1) {
+            applyBaseStateForTransition(priorStep, nextStep) {
+                this.graph.vertices.forEach(v => {
+                    const targetPos = this.viewMode === '3D' ?
+                        this.nodePositions3D.get(v.id) :
+                        this.nodePositions2D.get(v.id);
+                    if (targetPos) this.nodeTargetPositions.set(v.id, targetPos.clone());
+                });
+
+                if (nextStep.stepIndex === 1) {
+                    // Step 1: Base is full host graph (all vertices & edges visible!)
+                    this.nodeMeshes.forEach((mesh) => {
+                        mesh.visible = true;
+                        const isX = mesh.userData.part === 'X';
+                        const color = isX ? 0x00f0ff : 0xff007f;
+                        mesh.material = new THREE.MeshStandardMaterial({
+                            color: color,
+                            emissive: color,
+                            emissiveIntensity: 0.5,
+                            roughness: 0.2,
+                            metalness: 0.8
+                        });
+                        mesh.scale.set(1.0, 1.0, 1.0);
+                    });
+
+                    this.edgeMeshes.forEach((mesh) => {
+                        mesh.visible = true;
+                        mesh.material = new THREE.MeshStandardMaterial({
+                            color: 0x00f0ff,
+                            emissive: 0x00f0ff,
+                            emissiveIntensity: 0.3,
+                            transparent: true,
+                            opacity: 0.35
+                        });
+                    });
+                } else if (nextStep.stepIndex === 5 && !nextStep.isFailure) {
+                    this.applySettledState(priorStep);
+                } else {
+                    this.applySettledState(priorStep);
+                }
+            }
+
+            renderTransitionFlashState(priorStep, nextStep, flashToggle) {
+                const stepIdx = nextStep.stepIndex;
+
+                if (stepIdx === 1) {
+                    // Step 1: Vertices and incident edges to be deleted flash in WARNING DANGER RED
+                    const delV = nextStep.deletedVertices;
+                    const delE = nextStep.deletedEdges || new Set();
+
+                    delV.forEach(vId => {
+                        const mesh = this.nodeMeshes.get(vId);
+                        if (mesh) {
+                            if (flashToggle) {
                                 mesh.material.color.setHex(0xff0033);
                                 mesh.material.emissive.setHex(0xff0033);
-                                mesh.material.emissiveIntensity = 2.0;
-                            } else if (step.stepIndex === 2) {
-                                mesh.material.color.setHex(0x00ff66);
-                                mesh.material.emissive.setHex(0x00ff66);
-                                mesh.material.emissiveIntensity = 2.0;
-                            } else {
-                                mesh.material.color.setHex(0xffd700);
-                                mesh.material.emissive.setHex(0xffd700);
-                                mesh.material.emissiveIntensity = 2.0;
-                            }
-                            mesh.scale.set(1.7, 1.7, 1.7);
-                        } else {
-                            const isSpider = step.spiderVertices.has(vId);
-                            const isRoot = step.highlightedRoot === vId;
-                            if (isSpider) {
-                                mesh.material.color.setHex(0xffd700);
-                                mesh.material.emissive.setHex(0x665000);
-                                mesh.material.emissiveIntensity = 0.6;
-                                mesh.scale.set(1.6, 1.6, 1.6);
-                            } else if (isRoot) {
-                                mesh.material.color.setHex(0x00ff66);
-                                mesh.material.emissive.setHex(0x00ff66);
-                                mesh.material.emissiveIntensity = 1.5;
-                                mesh.scale.set(1.8, 1.8, 1.8);
+                                mesh.material.emissiveIntensity = 2.2;
+                                mesh.scale.set(1.65, 1.65, 1.65);
                             } else {
                                 const isX = mesh.userData.part === 'X';
-                                const origColor = isX ? 0x00f0ff : 0xff007f;
-                                mesh.material.color.setHex(origColor);
-                                mesh.material.emissive.setHex(origColor);
+                                const color = isX ? 0x00f0ff : 0xff007f;
+                                mesh.material.color.setHex(color);
+                                mesh.material.emissive.setHex(color);
                                 mesh.material.emissiveIntensity = 0.5;
                                 mesh.scale.set(1.0, 1.0, 1.0);
                             }
                         }
+                    });
+
+                    delE.forEach(eId => {
+                        const mesh = this.edgeMeshes.get(eId);
+                        if (mesh) {
+                            if (flashToggle) {
+                                mesh.material.color.setHex(0xff0033);
+                                mesh.material.emissive.setHex(0xff0033);
+                                mesh.material.emissiveIntensity = 1.6;
+                                mesh.material.opacity = 0.9;
+                            } else {
+                                mesh.material.color.setHex(0x00f0ff);
+                                mesh.material.emissive.setHex(0x00f0ff);
+                                mesh.material.emissiveIntensity = 0.3;
+                                mesh.material.opacity = 0.35;
+                            }
+                        }
+                    });
+                } else if (stepIdx === 2) {
+                    // Step 2: Selected root v flashes in ELECTRIC GREEN
+                    const rootV = nextStep.highlightedRoot;
+                    const mesh = this.nodeMeshes.get(rootV);
+                    if (mesh) {
+                        if (flashToggle) {
+                            mesh.material.color.setHex(0x00ff66);
+                            mesh.material.emissive.setHex(0x00ff66);
+                            mesh.material.emissiveIntensity = 2.4;
+                            mesh.scale.set(1.85, 1.85, 1.85);
+                        } else {
+                            const isX = mesh.userData.part === 'X';
+                            const color = isX ? 0x00f0ff : 0xff007f;
+                            mesh.material.color.setHex(color);
+                            mesh.material.emissive.setHex(color);
+                            mesh.material.emissiveIntensity = 0.5;
+                            mesh.scale.set(1.0, 1.0, 1.0);
+                        }
                     }
-                });
+                } else if (stepIdx === 3) {
+                    // Step 3: 6 backbone nodes & 6 backbone edges flash in GOLD
+                    const bNodes = nextStep.spiderVertices;
+                    const bEdges = nextStep.spiderEdges;
+
+                    bNodes.forEach(vId => {
+                        if (vId === nextStep.highlightedRoot) return;
+                        const mesh = this.nodeMeshes.get(vId);
+                        if (mesh) {
+                            if (flashToggle) {
+                                mesh.material.color.setHex(0xffd700);
+                                mesh.material.emissive.setHex(0xffd700);
+                                mesh.material.emissiveIntensity = 2.0;
+                                mesh.scale.set(1.65, 1.65, 1.65);
+                            } else {
+                                const isX = mesh.userData.part === 'X';
+                                const color = isX ? 0x00f0ff : 0xff007f;
+                                mesh.material.color.setHex(color);
+                                mesh.material.emissive.setHex(color);
+                                mesh.material.emissiveIntensity = 0.5;
+                                mesh.scale.set(1.0, 1.0, 1.0);
+                            }
+                        }
+                    });
+
+                    bEdges.forEach(eId => {
+                        const mesh = this.edgeMeshes.get(eId);
+                        if (mesh) {
+                            if (flashToggle) {
+                                mesh.material.color.setHex(0xffd700);
+                                mesh.material.emissive.setHex(0xffd700);
+                                mesh.material.emissiveIntensity = 1.6;
+                                mesh.material.opacity = 1.0;
+                            } else {
+                                mesh.material.color.setHex(0x00f0ff);
+                                mesh.material.emissive.setHex(0x00f0ff);
+                                mesh.material.emissiveIntensity = 0.3;
+                                mesh.material.opacity = 0.35;
+                            }
+                        }
+                    });
+                } else if (stepIdx === 4) {
+                    // Step 4: Pendant leaf & edge flash in GOLD
+                    const targetNodes = nextStep.targetElements || new Set();
+                    const targetEdges = nextStep.targetEdges || new Set();
+
+                    targetNodes.forEach(vId => {
+                        const mesh = this.nodeMeshes.get(vId);
+                        if (mesh) {
+                            if (flashToggle) {
+                                mesh.material.color.setHex(0xffd700);
+                                mesh.material.emissive.setHex(0xffd700);
+                                mesh.material.emissiveIntensity = 2.0;
+                                mesh.scale.set(1.65, 1.65, 1.65);
+                            } else {
+                                const isX = mesh.userData.part === 'X';
+                                const color = isX ? 0x00f0ff : 0xff007f;
+                                mesh.material.color.setHex(color);
+                                mesh.material.emissive.setHex(color);
+                                mesh.material.emissiveIntensity = 0.5;
+                                mesh.scale.set(1.0, 1.0, 1.0);
+                            }
+                        }
+                    });
+
+                    targetEdges.forEach(eId => {
+                        const mesh = this.edgeMeshes.get(eId);
+                        if (mesh) {
+                            if (flashToggle) {
+                                mesh.material.color.setHex(0xffd700);
+                                mesh.material.emissive.setHex(0xffd700);
+                                mesh.material.emissiveIntensity = 1.6;
+                                mesh.material.opacity = 1.0;
+                            } else {
+                                mesh.material.color.setHex(0x00f0ff);
+                                mesh.material.emissive.setHex(0x00f0ff);
+                                mesh.material.emissiveIntensity = 0.3;
+                                mesh.material.opacity = 0.35;
+                            }
+                        }
+                    });
+                } else if (stepIdx === 5) {
+                    // Step 5: All 8 spider nodes & 7 edges pulse in gold
+                    const spiderV = nextStep.spiderVertices;
+                    const spiderE = nextStep.spiderEdges;
+
+                    spiderV.forEach(vId => {
+                        const mesh = this.nodeMeshes.get(vId);
+                        if (mesh && mesh.visible) {
+                            if (flashToggle) {
+                                mesh.material.color.setHex(0xffd700);
+                                mesh.material.emissive.setHex(0xffd700);
+                                mesh.material.emissiveIntensity = 2.2;
+                                mesh.scale.set(1.85, 1.85, 1.85);
+                            } else {
+                                mesh.material.color.setHex(0xffd700);
+                                mesh.material.emissive.setHex(0x665000);
+                                mesh.material.emissiveIntensity = 0.6;
+                                mesh.scale.set(1.6, 1.6, 1.6);
+                            }
+                        }
+                    });
+
+                    spiderE.forEach(eId => {
+                        const mesh = this.edgeMeshes.get(eId);
+                        if (mesh && mesh.visible) {
+                            if (flashToggle) {
+                                mesh.material.color.setHex(0xffd700);
+                                mesh.material.emissive.setHex(0xffd700);
+                                mesh.material.emissiveIntensity = 1.8;
+                                mesh.material.opacity = 1.0;
+                            } else {
+                                mesh.material.color.setHex(0xffd700);
+                                mesh.material.emissive.setHex(0xffd700);
+                                mesh.material.emissiveIntensity = 1.2;
+                                mesh.material.opacity = 0.9;
+                            }
+                        }
+                    });
+                }
             }
 
             executeStepLockIn(index, step) {
                 if (index === 1) {
+                    // Trigger localized particle explosions directly on deleted vertices
                     step.deletedVertices.forEach(vId => {
                         const mesh = this.nodeMeshes.get(vId);
-                        if (mesh) {
-                            this.activeExplosions.push(new ParticleExplosion3D(this.scene, mesh.position, step.isFailure));
+                        if (mesh && mesh.visible) {
+                            this.activeExplosions.push(new ParticleExplosion3D(this.scene, mesh.position.clone(), step.isFailure));
                             mesh.visible = false;
                         }
                     });
+
+                    // Hide deleted edges
+                    if (step.deletedEdges) {
+                        step.deletedEdges.forEach(eId => {
+                            const mesh = this.edgeMeshes.get(eId);
+                            if (mesh) mesh.visible = false;
+                        });
+                    }
+
                     audioSynth.playExplosion();
-                    this.updateVisualState(step);
+                    this.applySettledState(step);
                 } else if (index === 2) {
                     if (step.isFailure) audioSynth.playFailureSiren();
                     else audioSynth.playIlluminate();
-                    this.updateVisualState(step);
+                    this.applySettledState(step);
                 } else if (index >= 3 && index <= 4) {
                     if (step.isFailure) audioSynth.playFailureSiren();
                     else audioSynth.playLaserEdge();
-                    this.updateVisualState(step);
+                    this.applySettledState(step);
                 } else if (index === 5) {
                     if (step.isFailure) {
                         audioSynth.playFailureSiren();
-                        this.updateVisualState(step);
+                        this.applySettledState(step);
                     } else {
                         audioSynth.playVictory();
-                        if (step.canonicalMap) {
-                            this.triggerCanonicalMorphing(step);
-                        }
+                        this.applySettledState(step);
                     }
                 } else {
-                    this.updateVisualState(step);
+                    this.applySettledState(step);
                 }
             }
 
-            updateVisualState(step) {
+            applySettledState(step) {
                 const isStep5Canonical = (step.stepIndex === 5 && !step.isFailure);
 
                 if (isStep5Canonical && step.canonicalMap) {
@@ -2506,10 +2786,10 @@ Condition: 40 > 36 edges.
                 }
 
                 this.nodeMeshes.forEach((mesh, vId) => {
-                    const isDeleted = step.deletedVertices.has(vId);
+                    const isDeleted = step.deletedVertices && step.deletedVertices.has(vId);
                     const isRoot = step.highlightedRoot === vId;
-                    const isSpider = step.spiderVertices.has(vId);
-                    const isActive = step.activeVertices.has(vId);
+                    const isSpider = step.spiderVertices && step.spiderVertices.has(vId);
+                    const isActive = step.activeVertices && step.activeVertices.has(vId);
 
                     if (isStep5Canonical) {
                         if (isSpider) {
@@ -2576,8 +2856,8 @@ Condition: 40 > 36 edges.
                 this.edgeMeshes.forEach((mesh, eId) => {
                     const u = mesh.userData.u;
                     const v = mesh.userData.v;
-                    const isSpiderEdge = step.spiderEdges.has(eId);
-                    const isActiveEdge = step.activeEdges.has(eId);
+                    const isSpiderEdge = step.spiderEdges && step.spiderEdges.has(eId);
+                    const isActiveEdge = step.activeEdges && step.activeEdges.has(eId);
 
                     if (isStep5Canonical) {
                         if (isSpiderEdge) {
@@ -2589,7 +2869,7 @@ Condition: 40 > 36 edges.
                         } else {
                             mesh.visible = false;
                         }
-                    } else if (!step.activeVertices.has(u) || !step.activeVertices.has(v)) {
+                    } else if (!step.activeVertices || !step.activeVertices.has(u) || !step.activeVertices.has(v)) {
                         mesh.visible = false;
                     } else {
                         mesh.visible = true;
@@ -2611,7 +2891,7 @@ Condition: 40 > 36 edges.
             }
 
             triggerCanonicalMorphing(step) {
-                this.updateVisualState(step);
+                this.applySettledState(step);
             }
 
             toggleViewMode() {
@@ -2680,17 +2960,17 @@ Condition: 40 > 36 edges.
         function scheduleNextStep() {
             if (!animator || !animator.isPlaying) return;
 
-            let delay = getStepDelay() + 2500;
+            let delay = getStepDelay() + 3200;
             if (animator.currentStepIndex === 5) {
-                delay = Math.max(delay, 7000);
+                delay = Math.max(delay, 7500);
             }
 
             animator.playTimeout = setTimeout(() => {
                 if (!animator.isPlaying) return;
                 if (animator.currentStepIndex >= animator.proofSteps.length - 1) {
-                    animator.setStep(0);
+                    animator.setStep(0, false);
                 } else {
-                    animator.setStep(animator.currentStepIndex + 1);
+                    animator.setStep(animator.currentStepIndex + 1, false);
                 }
                 scheduleNextStep();
             }, delay);
@@ -2724,6 +3004,21 @@ Condition: 40 > 36 edges.
             document.getElementById('btn-unlock-audio').addEventListener('click', unlockAudioFn);
             window.addEventListener('keydown', unlockAudioFn, { once: true });
             window.addEventListener('pointerdown', unlockAudioFn, { once: true });
+
+            // Keyboard navigation
+            window.addEventListener('keydown', (e) => {
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+                if (e.key === 'ArrowRight') {
+                    audioSynth.playClick();
+                    animator.setStep(animator.currentStepIndex + 1, false);
+                } else if (e.key === 'ArrowLeft') {
+                    audioSynth.playClick();
+                    animator.setStep(animator.currentStepIndex - 1, true);
+                } else if (e.key === ' ') {
+                    e.preventDefault();
+                    document.getElementById('btn-play-pause').click();
+                }
+            });
 
             loadPresetGraph('paper_default');
 
@@ -2761,11 +3056,13 @@ Condition: 40 > 36 edges.
             });
 
             document.getElementById('btn-next-step').addEventListener('click', () => {
-                animator.setStep(animator.currentStepIndex + 1);
+                audioSynth.playClick();
+                animator.setStep(animator.currentStepIndex + 1, false);
             });
 
             document.getElementById('btn-prev-step').addEventListener('click', () => {
-                animator.setStep(animator.currentStepIndex - 1);
+                audioSynth.playClick();
+                animator.setStep(animator.currentStepIndex - 1, true);
             });
 
             document.getElementById('btn-play-pause').addEventListener('click', (e) => {
